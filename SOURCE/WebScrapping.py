@@ -7,39 +7,63 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 import pandas as pd
-
+from webdriver_manager.chrome import ChromeDriverManager
+import os
 
 class Scrapping:
 
-    def __init__(self, website_url):
-        self.url = website_url
+    def __init__(self):
         options = Options()
         options.add_argument('--headless')
         options.add_argument('--blink-settings=imagesEnabled=false')
-        self.driver = webdriver.Chrome(options=options)
+        #self.driver = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
+        self.driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
     def readWebsite(self, link):
         page = urlopen(link)
         html = page.read().decode("utf-8")
         project_soup = BeautifulSoup(html, 'html.parser')
         section = project_soup.findAll('section', attrs={'class': 'ProductListComponent products'})
-        product_list = []
+        review_list = []
+        about_list = []
         for div in section[0].findAll('div', attrs={'class': 'ProductCardComponent'}):
             div_sec = div.findAll('section', attrs={'class': 'column products-tile__details'})
             title = list(div_sec[0].children)[0].getText()
+            #if self.isScrappedAlready(title) == True:
+            #    continue
             product_link = list(div_sec[0].children)[1].find('a').get('href')
-            reviews = self.getReviews(product_link, title)
-            df = pd.DataFrame(reviews)
-            # data = {'Title': title,
-            #        'Review': reviews}
-            product_list.append(df)
-            # description = self.getProductText(product_link)
-            # data = {'title': title,
-            #        'Product_Description': description}
-            # product_list.append(data)
-        vertical_stack = pd.concat(product_list, axis=0)
-        vertical_stack.to_csv(
-            '/Users/bhanugollapudi/Documents/Ding_Proj/Project_Management_Software/ProjectManagementSoftware_Reviews_1.csv')
+            df = self.saveReviews(product_link, title)
+            file_name = self.removespecialCharcters(title)
+            df.to_csv(
+                '/home/junhua/Documents/Bhanu_G/ProjectManagementSoftware/ProjectManagementSoftware/Data/ProjectManagementSoftware_Reviews'+(file_name)+'.csv', index=False)
+            data = self.saveProductDescription(product_link, title)
+            review_list.append(df)
+            about_list.append(data)
+        final_df = pd.concat(review_list, axis=0)
+        df = pd.DataFrame(about_list)
+        final_df.to_csv(
+            '/home/junhua/Documents/Bhanu_G/ProjectManagementSoftware/ProjectManagementSoftware/Data/ProjectManagementSoftware_Reviews.csv', index=False)
+        df.to_csv(
+            '/home/junhua/Documents/Bhanu_G/ProjectManagementSoftware/ProjectManagementSoftware/Data/ProjectManagementSoftware_About.csv', index=False)
+
+    def saveReviews(self, product_link, title):
+        print(product_link)
+        reviews = self.getReviews(product_link, title)
+        df = pd.DataFrame(reviews, index=None)
+        if {'hasPros', 'hasCons'}.issubset(df.columns):
+            df.drop(columns=['hasPros', 'hasCons'])
+        return df
+
+    def removespecialCharcters(self, title):
+        alphanumeric = [character for character in title if character.isalnum()]
+        title = "".join(alphanumeric)
+        return title
+
+    def saveProductDescription(self, product_link, title):
+        description = self.getProductText(product_link)
+        data = {'title': title,
+               'Product_Description': description}
+        return data
 
     def readDriverElement(self, url, link_text):
         wait = WebDriverWait(self.driver, 5)
@@ -68,22 +92,26 @@ class Scrapping:
             print('No Text')
             return None
 
-    def getReviewLink(self, url):
-        page = urlopen(url)
-        html = page.read().decode("utf-8")
-        project_soup = BeautifulSoup(html, 'html.parser')
-        section = project_soup.findAll('div', attrs={'class': 'MenuItemComponent column menu__item'})
-        link = section[0].find('a').get('href')
-        if link is None:
-            self.getSinglePageReviews(project_soup)
-        else:
-            return link
+    def isScrappedAlready(self, title):
+        filename = 'ProjectManagementSoftware_Reviews'+ title + '.csv'
+        xml_files = os.listdir('/home/junhua/Documents/Bhanu_G/ProjectManagementSoftware/ProjectManagementSoftware/Data')
+        for file in xml_files:
+            if file == filename:
+                return True
+        return False
 
     def getSinglePageReviews(self, url, title):
+        data = {}
+        data['Title'] = title
+        response = requests.get(url)
+        if response.status_code == 404:
+            return [data]
         page = urlopen(url)
         html = page.read().decode("utf-8")
         project_soup = BeautifulSoup(html, 'html.parser')
         section = project_soup.findAll('div', attrs={'class': 'review-copy-container'})
+        if len(section) == 0:
+            return [data]
         data = self.getReviewsData(section)
         data['Title'] = title
         try:
@@ -126,7 +154,10 @@ class Scrapping:
                     print('error')
                 review_dict['Title'] = title
                 try:
-                    profile_name = div.findAll('p', attrs={'class': 'review-profile-user'})[0].text
+                    profile_name = div.findAll('p', attrs={'class': "ui review-profile-defined"})
+                    if len(profile_name) == 0:
+                        profile_name = div.findAll('div', attrs={'class': "review-profile-user"})
+                    profile_name = profile_name[0].text
                     review_dict['User_Name'] = profile_name
                 except:
                     review_dict['User_Name'] = None
@@ -162,6 +193,7 @@ class Scrapping:
 
 
 if __name__ == '__main__':
-    obj = Scrapping('https://www.softwareadvice.com/project-management/')
+    obj = Scrapping()
     obj.readDriverElement('https://www.softwareadvice.com/project-management/', "View all products")
-    # obj.getSinglePageReviews('https://www.softwareadvice.com/project-management/rodeo-profile/')
+    #obj.saveReviews('https://www.softwareadvice.com/project-management/workgroups-profile/', 'BHanu')
+    #obj.getReviews('https://www.softwareadvice.com/project-management/workgroups-profile/', 'Bhanu')

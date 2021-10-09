@@ -8,15 +8,17 @@ from selenium import webdriver
 import requests
 import pandas as pd
 import time
+from webdriver_manager.chrome import ChromeDriverManager
+
 
 class Scrapping:
 
     def __init__(self, url):
-        self.url = url
         options = Options()
-        #options.add_argument('--headless')
-        #options.add_argument('--blink-settings=imagesEnabled=false')
-        self.driver = webdriver.Chrome()
+        options.add_argument('--headless')
+        options.add_argument('--blink-settings=imagesEnabled=false')
+        # self.driver = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
+        self.driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
     def readWebsite(self, link):
         page = urlopen(link)
@@ -101,7 +103,7 @@ class Scrapping:
 
     def getPagination(self, review_link):
         product_all_pages = []
-        for i in range(1, 12):
+        for i in range(1, 100):
             request = "https://www.softwareadvice.com/project-management/workzone-profile/reviews/?review.page=" + str(i)
             response = requests.get(request)
             self.driver.get(request)
@@ -147,7 +149,7 @@ if __name__ == '__main__':
     obj = Scrapping('https://www.softwareadvice.com/project-management/openair-srp-profile/')
     #obj.getProductText('https://www.softwareadvice.com/project-management/openair-srp-profile/')
     #obj.getReviews('https://www.softwareadvice.com/project-management/rodeo-profile/')
-    obj.getPagination('https://www.softwareadvice.com/project-management/workzone-profile/reviews/')
+    obj.getPagination('https://www.softwareadvice.com/project-management/workgroups-profile/')
     #obj.getReviews('https://www.softwareadvice.com/project-management/workzone-profile/reviews/')
 
 
